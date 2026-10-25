@@ -1,0 +1,46 @@
+# Crée l'installateur Windows sur les serveurs GitHub (gratuit) : rien à installer sur ton PC.
+name: Creer l'installateur Windows
+
+on:
+  push:
+    branches: [main, master]
+  release:
+    types: [published]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  installateur:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
+
+      - name: Compiler l'application (autonome, sans .NET a installer chez les joueurs)
+        run: dotnet publish AbyssXLauncher.csproj -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -o publish
+
+      - name: Installer Inno Setup
+        run: choco install innosetup -y --no-progress
+
+      - name: Creer l'installateur
+        shell: pwsh
+        run: |
+          & "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe" "installer\AbyssX-Launcher.iss"
+
+      - name: Garder l'installateur (onglet Actions, en bas de l'execution)
+        uses: actions/upload-artifact@v6
+        with:
+          name: AbyssX-Launcher-Installateur
+          path: installer/Output/AbyssX Launcher Setup Installer.exe
+          if-no-files-found: error
+
+      - name: Ajouter l'installateur a la release
+        if: github.event_name == 'release'
+        run: gh release upload "${{ github.event.release.tag_name }}" "installer/Output/AbyssX Launcher Setup Installer.exe" --clobber
+        env:
+          GH_TOKEN: ${{ github.token }}
